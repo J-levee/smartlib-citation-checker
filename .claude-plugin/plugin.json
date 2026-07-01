@@ -1,0 +1,23 @@
+{
+  "name": "smartlib-citation-checker",
+  "version": "3.6.0",
+  "description": "AI引用核查 — 检测AI生成参考文献是否真实，防止幻觉。基于12亿全球文献库，输出HTML核查报告。首次使用自动注册（免费100次/月）。",
+  "author": {
+    "name": "J-levee",
+    "url": "https://github.com/J-levee"
+  },
+  "repository": "https://github.com/J-levee/smartlib-citation-checker",
+  "license": "MIT",
+  "keywords": [
+    "citation-checker",
+    "reference-verification",
+    "AI-hallucination",
+    "引用核查",
+    "参考文献验证",
+    "学术写作",
+    "academic-writing"
+  ],
+  "skills": [
+    "./SKILL.md"
+  ]
+}

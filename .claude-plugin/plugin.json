@@ -1,7 +1,7 @@
 {
   "name": "smartlib-citation-checker",
   "description": "参考文献验真与AI引用核查——基于12亿全球文献核验稿件/AI生成参考文献真实性，防幻觉，输出可交叉验证的核查报告。",
-  "version": "3.6",
+  "version": "3.6.1",
   "author": {
     "name": "SmartLib"
   },

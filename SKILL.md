@@ -2,9 +2,9 @@
 slug: smartlib-citation-checker
 name: smartlib-citation-checker
 displayName: 参考文献验真、AI引用核查（12亿全球文献，有原始文献链接可核验）
-version: 3.6.2
+version: 3.6.3
 description: 核查用户提交的论文稿件或AI生成参考文献是否真实，防止AI幻觉。基于SmartLib API，输出HTML核查报告（含差异标记、验证链接、统计分析）。支持GB/T 7714-2025（2026年7月1日起实施）/APA/MLA/Chicago/BibTeX多格式解析与输出，并行检索（8条/批）+ Token缓存复用 + 智能提前终止回退。✨ 亮点：核查结果附带原始数据库来源链接（覆盖300+数据库，如Scopus/WoS/EI/PubMed等，覆盖率100%），可交叉验证文献真实性。全程自动化：首次使用自动注册开通（免费100次/月），配额自动消耗，用尽后引导充值续费。触发词：核查引用、验证参考文献、检查引用、查引用、论文引用检查、AI引用核查、参考文献真假、文献核实、引用验证、引用格式检查、AI论文引用检查、参考文献审计、论文参考文献是真的吗、AI写的论文引用靠谱吗、ChatGPT引用核查、verify citation、check references。
-  Production URL: read from global-biblio-base/config.json → SMARTLIB_GATEWAY_URL (Gateway v47, version 67)
+  Production URL: read from global-biblio-base/config.json → SMARTLIB_GATEWAY_URL (SmartLib Gateway v52.1)
 agent_created: true
 ---
 
@@ -74,8 +74,8 @@ agent_created: true
   GET <SMARTLIB_GATEWAY_URL>/quota?email=<SMARTLIB_EMAIL>
   Headers: {"Authorization": "Bearer <SMARTLIB_GATEWAY_SECRET>"}
 
-  返回字段: total_remain, email_verified, plan
-  （完整返回: user_id, email, plan, trial_total, trial_used, trial_remain, paid_total, paid_used, paid_remain, paid_expires_at, total_remain, email_verified）
+  返回字段: total_remain, email_verified, plan, download_quota_free, download_reset_at, download_paid_remain, download_remain
+  （完整返回: user_id, email, plan, trial_total, trial_used, trial_remain, paid_total, paid_used, paid_remain, paid_expires_at, total_remain, email_verified, download_quota_free, download_reset_at, download_paid_remain, download_remain）
 
   如果返回 404 "not_registered" → 用户可能已被重置/删除
     → 提示: "检测到您的账户需要重新绑定，正在自动重新注册..."
@@ -84,7 +84,7 @@ agent_created: true
 
   total_remain > 20 → 静默进入核查
   total_remain 5-20 → 尾部轻提示: "📊 本月剩余 {n} 次"
-  total_remain 1-5  → 警告: "⚠️ 接近用尽（剩余 {n} 次），回复「充值」查看套餐（数字 1-4 选）"
+  total_remain 1-5  → 警告: "⚠️ 接近用尽（剩余 {n} 次），说「我要升级」查看套餐（详见 global-biblio-base 的 references/account.md）"
   total_remain 0    → 拒绝服务，提示充值（见下方配额耗尽处理章节）
 
   额外检查:
@@ -183,73 +183,15 @@ agent_created: true
 
 ### 触发时机
 1. 配额为 0 (gateway 返回 429)
-2. 用户说 "充值" "续费" "购买"
+2. 用户说 "充值" "续费" "购买" "我要升级"
 
-### 套餐列表
+### 计费与升级（统一钱包）
 
-| 套餐 | plan key | 价格(元) | 配额 | 说明 |
-|------|----------|---------|------|------|
-| 体验包 | `trial` | 9.90 | 1000 次 | 限购 1 次 |
-| 基础月付 | `basic` | 29.00 | 5000 次/月 | 个人用户 |
-| 进阶月付 | `pro` | 99.00 | 20000 次/月 | 轻度团队 |
-| 专业月付 | `enterprise` | 299.00 | 100000 次/月 | 重度使用 |
+本技能与 global-biblio-base **共享统一钱包配额**，所有文献检索技能**统一定价、配额共享**。
 
-> **plan key**：调用 `/api/pay/create` 时传 `trial`/`basic`/`pro`/`enterprise`。金额单位为**元**（非分）。
-
-### 支付流程（对话交互，数字选套餐）
-
-全部在对话中完成，用户只需回复数字：
-
-```
-配额耗尽/用户说"充值" →
-    ↓
-⓪ 展示套餐卡片（show_widget），用数字①②③④标注:
-   ① 体验包 ¥9.90 — 1,000 次/月
-   ② 基础月付 ¥29.00 — 5,000 次/月
-   ③ 进阶月付 ¥99.00 — 20,000 次/月 [推荐]
-   ④ 专业月付 ¥299.00 — 100,000 次/月
-   用户回复数字 (如 "3")
-    ↓
-   映射: "1"→trial, "2"→basic, "3"→pro, "4"→enterprise
-    ↓
-① 调 Gateway 生成订单:
-  POST {SMARTLIB_GATEWAY_URL}/api/pay/create
-  Headers: {"Authorization": "Bearer {SMARTLIB_GATEWAY_SECRET}"}
-  Body: {"plan": "basic", "amount": 29.00, "quota": 5000, "email": "{SMARTLIB_EMAIL}"}
-
-  返回: {"code_url": "weixin://...", "out_trade_no": "WB...", "amount": 29.00, "plan": "basic", "quota": 5000}
-    ↓
-② 生成带订单信息的二维码 HTML 页面，用 preview_url 在对话内展示:
-
-  **页面必须包含：套餐名称、金额、配额标签、二维码、订单号**
-  用 qrcode.js CDN 将 code_url 渲染为二维码。
-  样式参考：渐变紫色背景 + 白色卡片 + 居中布局。
-
-  ⚠️ 不要在卡片内容中显示用户邮箱
-
-    ↓
-③ 轮询支付状态:
-  GET {SMARTLIB_GATEWAY_URL}/api/pay/status?out_trade_no=xxx
-  (间隔 3s 轮询,最多轮询 20 次 ≈ 60s，超时提示重新发起)
-
-  支付成功时返回:
-  {"status":"paid", "auto_recharged":true, "quota_remain":5000, "quota_total":5100, "quota_used":100}
-    ↓
-④ 对话中通知结果:
-  "✅ 支付成功! 已自动充值 5000 次，当前剩余 5000 次。"
-    ↓
-  自动重试上次中断的核查
-```
-
-### 为什么不需要 /recharge？
-支付回调 (`/api/pay/notify`) 由微信支付服务器直接通知 Gateway，Gateway 在回调中**同一事务内**完成标记订单 paid + 累加配额。`/api/pay/status` 查询到 paid 时配额已到账，无需额外操作。
-
-### 安全机制
-- 网关通过 `out_trade_no` UNIQUE 索引防重复充值
-- 二维码 5 分钟有效, 超时需重新发起
-- `/api/pay/status` 为公开端点（无需 Bearer Token），可直接轮询
-- `SMARTLIB_GATEWAY_SECRET` 仅供后端调用, 不在对话中输出
-- ⚠️ 生成的支付 HTML 页面上**禁止显示用户邮箱**，仅显示套餐信息
+- 套餐价格、额度、注册与升级流程：**见 global-biblio-base 的 `references/account.md`（smartlib-account）**。
+- 配额不足或想升级：在对话中说「我要升级」即可（由 global-biblio-base 的统一钱包处理，无需在本技能操作）。
+- 企业 / 机构定制：联系 vipsmart@vipslib.com。
 
 ---
 
@@ -262,24 +204,17 @@ agent_created: true
 | 状态 | 行为 |
 |------|------|
 | **配额充足** (>0) | 完整展示所有核查结果（含差异标记、验证链接、统计分析、HTML 报告） |
-| **配额耗尽** (=0) | Gateway 返回 429，**拒绝服务**，直接提示充值 |
+| **配额耗尽** (=0) | Gateway 返回 429，**拒绝服务**，提示说「我要升级」查看套餐 |
 
 配额耗尽后的提示格式：
 
 ```
 ⚠️ 您的 SmartLib 检索配额已用尽（0/100次）。
 
-当前配额不支持发起新的文献核查请求。请充值后继续使用。
-
-> 💰 充值套餐：
-> 体验包：¥9.90 / 1000次
-> 月付基础：¥29.00 / 5000次/月
-> 月付进阶：¥99.00 / 20000次/月
-> 月付专业：¥299.00 / 100000次/月
-> 回复「充值」查看套餐（回复数字 1-4 选择），支付后立即生效。
+当前配额不支持发起新的文献核查请求。请在对话中说「我要升级」查看套餐（详见 global-biblio-base 的 `references/account.md`），支付后立即恢复配额。
 ```
 
-**重要**：配额耗尽后，**所有核查请求一律拒绝**，不展示任何部分结果。用户需先充值恢复配额。
+**重要**：配额耗尽后，**所有核查请求一律拒绝**，不展示任何部分结果。用户需先升级恢复配额（说「我要升级」）。
 
 ---
 
@@ -292,7 +227,7 @@ agent_created: true
 ```
 或接近耗尽时：
 ```
-⚠️ 剩余 3 次 (共 100 次/月)，回复「充值」选套餐
+⚠️ 剩余 3 次 (共 100 次/月)，说「我要升级」查看套餐
 ```
 
 ```
@@ -716,6 +651,10 @@ sediment load forecasting. Engineering Applications of Computational Fluid Mecha
 
 ---
 
+## 常驻通知转述（v52.2 起）
+
+若任意 SmartLib 网关响应（`/search` 或 `/quota`）的 `notifications` 数组非空，将其中每条的 `text` **原样转述**给用户（含其中的 `url` 链接，用该 `text` 引导用户点击）。**不要改写措辞**，也不要合并多条。
+
 ## 版本历史 / Version History
 
 | 版本 | 日期 | 核心变更 |
@@ -740,3 +679,4 @@ sediment load forecasting. Engineering Applications of Computational Fluid Mecha
 | v3.4 | 2026-06 | 技能展示名称与描述优化 |
 | v3.5 | 2026-06 | **全面升级至 GB/T 7714-2025**：新增预印本、数据集、地图、档案等文献类型；更新作者姓名格式、文献类型必选等规则；网页/标准/专利著录格式优化 |
 | v3.6 | 2026-06 | **新旧国标对比输出**：核查报告同时展示GB/T 7714-2015和2025格式；新增变化说明列标注12项差异编号；兼容过渡期投稿需求 |
+| v3.6.3 | 2026-07-19 | 文档对齐 v52.1 统一钱包：Production URL 版本标注更新为 v52.1；/quota 返回字段补充下载额度（download_quota_free / download_reset_at / download_paid_remain / download_remain） |

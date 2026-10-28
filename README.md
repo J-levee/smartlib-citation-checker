@@ -1,4 +1,4 @@
-# SmartLib Citation Checker v3.6.5
+# SmartLib Citation Checker v3.6.7
 
 > **中文** · [English below](#english)
 
@@ -86,7 +86,7 @@ MIT License — 代码开源，商用 API 需授权。
 
 <a name="english"></a>
 
-# SmartLib Citation Checker v3.6.5 — English
+# SmartLib Citation Checker v3.6.7 — English
 
 > Smart citation verification skill. Detects AI hallucinations in references.
 

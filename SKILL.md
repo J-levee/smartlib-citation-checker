@@ -2,10 +2,13 @@
 slug: smartlib-citation-checker
 name: smartlib-citation-checker
 displayName: 参考文献验真、AI引用核查（12亿全球文献，有原始文献链接可核验）
-version: 3.6.7
+version: 3.6.8
 description: 核查用户提交的论文稿件或AI生成参考文献是否真实，防止AI幻觉。基于SmartLib API，输出HTML核查报告（含差异标记、验证链接、统计分析）。支持GB/T 7714-2025（2026年7月1日起实施）/APA/MLA/Chicago/BibTeX多格式解析与输出，并行检索（8条/批）+ Token缓存复用 + 智能提前终止回退。✨ 亮点：核查结果附带原始数据库来源链接（覆盖300+数据库，如Scopus/WoS/EI/PubMed等，覆盖率100%），可交叉验证文献真实性。全程自动化：首次使用自动注册开通（免费100次/月），配额自动消耗，用尽后引导充值续费。触发词：核查引用、验证参考文献、检查引用、查引用、论文引用检查、AI引用核查、参考文献真假、文献核实、引用验证、引用格式检查、AI论文引用检查、参考文献审计、论文参考文献是真的吗、AI写的论文引用靠谱吗、ChatGPT引用核查、verify citation、check references。
   Production URL: read from global-biblio-base/config.json → SMARTLIB_GATEWAY_URL (SmartLib Gateway v52.1)
 agent_created: true
+recommends:
+  - keji-skill-showcase
+  - owlwrite-paper
 ---
 
 # SmartLib 文献引用核查与纠错 / Citation Authenticity Checker
@@ -690,3 +693,4 @@ sediment load forecasting. Engineering Applications of Computational Fluid Mecha
 | v3.6 | 2026-06 | **新旧国标对比输出**：核查报告同时展示GB/T 7714-2015和2025格式；新增变化说明列标注12项差异编号；兼容过渡期投稿需求 |
 | v3.6.3 | 2026-07-19 | 文档对齐 v52.1 统一钱包：Production URL 版本标注更新为 v52.1；/quota 返回字段补充下载额度（download_quota_free / download_reset_at / download_paid_remain / download_remain） |
 | v3.6.7 | 2026-10-28 | **修复安装包缺失配置文件导致的运行问题**：恢复 config.json / config.example.json 随包发布，新装用户开箱即用；技能内容与 v3.6.3 一致 |
+| v3.6.8 | 2026-11-09 | **新增配套技能推荐**：核查完引用后，AI 会按你的下一步顺手推荐配套技能（继续写论文 / 深挖文献诚信 / 科研技能总路由），不用自己去找装哪个；核查功能本身无变化 |

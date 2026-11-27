@@ -2,7 +2,7 @@
 slug: smartlib-citation-checker
 name: smartlib-citation-checker
 displayName: 参考文献验真、AI引用核查（12亿全球文献，有原始文献链接可核验）
-version: 4.0.1
+version: 4.0.2
 description: 核查用户提交的论文稿件或AI生成参考文献是否真实，防止AI幻觉。基于SmartLib API，输出HTML核查报告（含差异标记、验证链接、统计分析）。支持GB/T 7714-2025（2026年7月1日起实施）/APA/MLA/Chicago/BibTeX多格式解析与输出，并行检索（8条/批）+ Token缓存复用 + 智能提前终止回退。✨ 亮点：核查结果附带原始数据库来源链接（覆盖300+数据库，如Scopus/WoS/EI/PubMed等，有检索结果的条目均附原始来源链接供交叉验证），可交叉验证文献真实性。全程自动化：首次使用自动注册开通（免费100次/月），配额自动消耗，用尽后引导充值续费。触发词：核查引用、验证参考文献、检查引用、查引用、论文引用检查、AI引用核查、参考文献真假、文献核实、引用验证、引用格式检查、AI论文引用检查、参考文献审计、论文参考文献是真的吗、AI写的论文引用靠谱吗、ChatGPT引用核查、verify citation、check references。
 agent_created: true
 recommends:
@@ -147,6 +147,8 @@ recommends:
 | 中文期刊详情 | `POST /search` `{"endpoint":"/detail/cn", "article_ids":["..."]}` |
 | 全球文献详情 | `POST /search` `{"endpoint":"/detail/global", "article_ids":["..."]}` |
 
+> ⚠️ **详情接口参数双轨**：语义化模式（余额账户）用 `article_ids` 数组；代理模式（`api_path` 直连上游，如 `"/openapi/t/data0011/doccenter/Articledetail"`）必须用 `Identifier` 字符串（单个 ID，如 `"20621610706"`）。两者混用会返回「文献id不能为空」——按当前账户模式选对参数，不要互换。
+
 > ❌ **余额账户禁止使用 `api_path` + `api_body` 代理模式**——网关会返回 403 `upgrade_required`。这是安全设计，不是故障，**不要重试、不要尝试绕过**，直接切语义化端点。
 >
 > 语义化端点仍需 `email` 字段，**且 `email` 必须与私钥所属账户一致**。
@@ -156,7 +158,7 @@ recommends:
 | | 写法 | 结果 |
 |---|---|---|
 | ✅ 正确 | `rule: "T=attention all you need"`<br>`filter_rule: "Y=2017"` | 正常返回 |
-| ❌ 错误 | `rule: "(T=attention all you need) AND Y=2017"` | **400 `invalid_rule`** |
+| ❌ 错误 | `rule: "(T=attention all you need) AND Y=2017"` | 余额账户 **400 `invalid_rule`**；普通/配额账户可能「通过」但结果不可靠——**为统一实现一律禁止**，年份只走 `filter_rule` |
 
 - `rule` 只允许：`T` 题名 / `A` 作者 / `K` 关键词 / `P` 出版者 / `PU` 出版单位 / `O` 机构 / `U` 任意字段
 - `filter_rule` 允许：`L` / `C` / `Y` 年份 / `TY` 类型 / `LA` 语言 / `IS` 期 / `IB` / `MO` 载体
@@ -701,6 +703,7 @@ def title_similarity(cite_title, db_title):
 **`refs_text` 拼接规范**
 - `[1] 原文\n[2] 原文` 编号列表，一条一行
 - 保留用户原始引用文本，**不要**预先改写格式（夜猫子自己解析）
+- **支持格式（v4.0.2）**：GB/T 7714（2015/2025）、APA、MLA、Chicago、BibTeX——夜猫子后端已做格式归一化，五种格式均能正确提取题名/年份/刊名/卷期/页码/DOI。其他小众格式建议先归一化为 GB/T 7714 再送深核，避免误判
 - 单次上限：10 万字符 / 500 条；超出分批，每批 ≤200 条
 
 **判定映射（夜猫子 → 本技能状态）**
@@ -718,6 +721,8 @@ def title_similarity(cite_title, db_title):
 
 > **撤稿三态铁律**：`clean` 仅在**确实拿到该条 DOI 并查到记录**时才是「未撤稿」；无 DOI 或查询失败一律写 `⚠️ 未核撤稿状态`，**不得显示「未撤稿」**。
 
+> 🔴 **撤稿题名兜底（v4.0.2）**：夜猫子返回条目若 `retraction` 字段缺失/为空，但 `hit.title`（命中题名）或引用题名含 `RETRACTED:` / `Withdrawn:` / `已撤稿` 等强标记，一律按**已撤稿**处理、置顶红旗，**不得显示「通过」**。后端已内置同款兜底并标 `retraction_source=title_marker`；Agent 侧见字段缺失时按此规则复核，形成双保险。若后端已给 `retraction`（clean/retracted/concern），**以后端为准，不覆盖**。题名标记来自数据源原始记录，仅供参考，报告须注明「以出版社撤稿声明为准」。
+
 **计费提示（必须告知）**
 - 报价阶段就报 `points`（按实时报价，72h 内重复核验更省）
 - 用户确认后才 `POST /v1/runs`
@@ -731,7 +736,7 @@ def title_similarity(cite_title, db_title):
 | 轮询 180s 未完成 | 告知 run_id 可稍后查，本次先用 SmartLib 结论 |
 | `failed` | 如实告知（夜猫子失败自动退款），**不重复扣费** |
 
-**与题名标记法的关系**：拿到夜猫子结果时，撤稿判定**以夜猫子为准**，不再用题名字符串匹配。没有夜猫子结果的条目退化为弱信号，措辞必须是「库内未见撤稿标记，不代表未撤稿」。
+**与题名标记法的关系（v4.0.2 修订）**：拿到夜猫子结果时，撤稿判定**优先以后端 `retraction` 字段为准**；但当该字段缺失时，**回退用命中题名的 `RETRACTED:`/`Withdrawn:` 强标记兜底**（见上方撤稿三态铁律下的兜底条款），不直接判通过。完全没有夜猫子结果的条目才退化为弱信号，措辞必须是「库内未见撤稿标记，不代表未撤稿」。
 
 ### Step 5: 生成 HTML 核查报告 / Generate HTML Report
 
@@ -996,6 +1001,7 @@ sediment load forecasting. Engineering Applications of Computational Fluid Mecha
 ## 版本历史 / Version History
 
 
+| v4.0.2 | 2026-11-27 | 深度核验更可靠：已撤稿文献即使撤稿库暂未收录，只要来源题名带撤稿标记也会明确提示、不再误判为通过；核验现支持 APA、MLA、Chicago、BibTeX 等更多引用格式；写作任务开始时会说明「按最终字数计费、报价为预估」。 |
 | v4.0.1 | 2026-11-27 | 绑定夜猫子后，每次验真会在后台同步记一次权益使用次数（不额外扣费、不影响验真结果），为将来额度用尽后平滑衔接做准备；首次使用照常出结果，报告末尾给一行轻提示。 |
 | v4.0.0 | 2026-11-26 | **核验报告现提供原始数据库来源链接**，可对每条文献交叉验证；验真能力可平滑衔接论文写作、检索、查重等更多科研服务，按需取用，不影响原有验真流程。 |
 | 版本 | 日期 | 核心变更 |
